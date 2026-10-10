@@ -1,0 +1,1549 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>🔫 КРУТОЙ FPS</title>
+    <style>
+        /* ─── Глобальный сброс и фон ─── */
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        body {
+            overflow: hidden;
+            background: #0a0a12;
+            font-family: 'Segoe UI', system-ui, -apple-system, sans-serif;
+            user-select: none;
+        }
+        canvas {
+            display: block;
+        }
+
+        /* ─── Блок перекрытия для запуска ─── */
+        #startOverlay {
+            position: fixed;
+            inset: 0;
+            z-index: 100;
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+            background: rgba(10, 10, 18, 0.92);
+            backdrop-filter: blur(8px);
+            transition: opacity 0.6s ease, visibility 0.6s ease;
+            cursor: pointer;
+            color: #fff;
+            text-align: center;
+            padding: 2rem;
+        }
+        #startOverlay.hidden {
+            opacity: 0;
+            visibility: hidden;
+            pointer-events: none;
+        }
+        #startOverlay h1 {
+            font-size: clamp(2.8rem, 10vw, 6rem);
+            font-weight: 800;
+            letter-spacing: 4px;
+            background: linear-gradient(135deg, #ff6b35, #ff2d55);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            text-shadow: 0 0 60px rgba(255, 45, 85, 0.3);
+            margin-bottom: 0.3em;
+        }
+        #startOverlay .subtitle {
+            font-size: clamp(1rem, 2.5vw, 1.6rem);
+            color: rgba(255, 255, 255, 0.7);
+            margin-bottom: 2.5rem;
+            font-weight: 300;
+            letter-spacing: 2px;
+        }
+        #startOverlay .controls-info {
+            display: grid;
+            grid-template-columns: auto 1fr;
+            gap: 0.4rem 1.2rem;
+            background: rgba(255, 255, 255, 0.05);
+            border: 1px solid rgba(255, 255, 255, 0.08);
+            border-radius: 16px;
+            padding: 1.8rem 2.8rem;
+            font-size: clamp(0.85rem, 1.2vw, 1.1rem);
+            text-align: left;
+            max-width: 460px;
+            width: 100%;
+            margin-bottom: 2.5rem;
+        }
+        #startOverlay .controls-info kbd {
+            background: rgba(255, 255, 255, 0.12);
+            border-radius: 6px;
+            padding: 0.1rem 0.8rem;
+            font-family: inherit;
+            font-weight: 600;
+            color: #fff;
+            text-align: center;
+            border: 1px solid rgba(255, 255, 255, 0.1);
+        }
+        #startOverlay .controls-info span {
+            color: rgba(255, 255, 255, 0.8);
+        }
+        #startOverlay .click-msg {
+            font-size: clamp(1.1rem, 1.8vw, 1.5rem);
+            font-weight: 500;
+            color: #fff;
+            animation: pulse 1.8s ease-in-out infinite;
+        }
+        #startOverlay .click-msg .icon {
+            display: inline-block;
+            animation: bounce 1.2s ease infinite;
+        }
+
+        @keyframes pulse {
+            0%,
+            100% {
+                opacity: 0.6;
+                transform: scale(1);
+            }
+            50% {
+                opacity: 1;
+                transform: scale(1.04);
+            }
+        }
+        @keyframes bounce {
+            0%,
+            100% {
+                transform: translateY(0);
+            }
+            50% {
+                transform: translateY(-6px);
+            }
+        }
+
+        /* ─── HUD ─── */
+        #hud {
+            position: fixed;
+            inset: 0;
+            z-index: 10;
+            pointer-events: none;
+            color: #fff;
+            font-weight: 600;
+            text-shadow: 0 2px 12px rgba(0, 0, 0, 0.7);
+        }
+
+        /* Верхняя панель */
+        #topHud {
+            display: flex;
+            justify-content: space-between;
+            align-items: flex-start;
+            padding: 1.2rem 2rem;
+            font-size: clamp(1rem, 1.6vw, 1.5rem);
+        }
+        #scoreDisplay {
+            background: rgba(0, 0, 0, 0.5);
+            backdrop-filter: blur(6px);
+            padding: 0.5rem 1.4rem;
+            border-radius: 12px;
+            border: 1px solid rgba(255, 255, 255, 0.08);
+        }
+        #scoreDisplay .label {
+            font-weight: 400;
+            color: rgba(255, 255, 255, 0.6);
+            font-size: 0.7em;
+        }
+        #scoreDisplay .value {
+            font-size: 1.2em;
+            color: #ffd700;
+        }
+        #waveDisplay {
+            background: rgba(0, 0, 0, 0.5);
+            backdrop-filter: blur(6px);
+            padding: 0.5rem 1.4rem;
+            border-radius: 12px;
+            border: 1px solid rgba(255, 255, 255, 0.08);
+            text-align: right;
+        }
+        #waveDisplay .label {
+            font-weight: 400;
+            color: rgba(255, 255, 255, 0.6);
+            font-size: 0.7em;
+        }
+        #waveDisplay .value {
+            font-size: 1.2em;
+            color: #6fc3ff;
+        }
+        #enemyCount {
+            font-size: 0.8em;
+            color: rgba(255, 255, 255, 0.5);
+            margin-top: 2px;
+        }
+
+        /* Нижняя панель */
+        #bottomHud {
+            position: absolute;
+            bottom: 2rem;
+            left: 0;
+            right: 0;
+            display: flex;
+            justify-content: space-between;
+            align-items: flex-end;
+            padding: 0 2rem;
+        }
+
+        /* Здоровье */
+        #healthContainer {
+            display: flex;
+            align-items: center;
+            gap: 0.8rem;
+            background: rgba(0, 0, 0, 0.5);
+            backdrop-filter: blur(6px);
+            padding: 0.6rem 1.4rem 0.6rem 1.2rem;
+            border-radius: 16px;
+            border: 1px solid rgba(255, 255, 255, 0.06);
+            min-width: 160px;
+        }
+        #healthIcon {
+            font-size: 1.4rem;
+            line-height: 1;
+        }
+        #healthBarWrap {
+            flex: 1;
+            height: 10px;
+            background: rgba(255, 255, 255, 0.12);
+            border-radius: 99px;
+            overflow: hidden;
+            min-width: 80px;
+        }
+        #healthBar {
+            height: 100%;
+            width: 100%;
+            border-radius: 99px;
+            background: linear-gradient(90deg, #ff2d55, #ff6b35);
+            transition: width 0.25s ease;
+        }
+        #healthText {
+            font-size: 0.9rem;
+            font-weight: 700;
+            min-width: 2.6rem;
+            text-align: right;
+            color: rgba(255, 255, 255, 0.9);
+        }
+
+        /* Боеприпасы */
+        #ammoContainer {
+            background: rgba(0, 0, 0, 0.5);
+            backdrop-filter: blur(6px);
+            padding: 0.6rem 1.6rem 0.6rem 1.4rem;
+            border-radius: 16px;
+            border: 1px solid rgba(255, 255, 255, 0.06);
+            text-align: right;
+            min-width: 120px;
+        }
+        #ammoCount {
+            font-size: 1.6rem;
+            font-weight: 800;
+            letter-spacing: 1px;
+            color: #fff;
+        }
+        #ammoCount .max {
+            font-size: 0.9rem;
+            font-weight: 400;
+            color: rgba(255, 255, 255, 0.4);
+        }
+        #ammoCount .reload-text {
+            font-size: 0.8rem;
+            font-weight: 600;
+            color: #ffd700;
+            animation: pulse 0.6s ease-in-out infinite;
+            display: none;
+        }
+        #ammoCount .reload-text.active {
+            display: inline;
+        }
+
+        /* Прицел */
+        #crosshair {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            width: 40px;
+            height: 40px;
+            pointer-events: none;
+            opacity: 0.9;
+        }
+        #crosshair::before,
+        #crosshair::after {
+            content: '';
+            position: absolute;
+            background: rgba(255, 255, 255, 0.85);
+        }
+        #crosshair::before {
+            width: 2px;
+            height: 100%;
+            left: 50%;
+            transform: translateX(-50%);
+            border-radius: 2px;
+            box-shadow: 0 0 8px rgba(0, 0, 0, 0.5);
+        }
+        #crosshair::after {
+            width: 100%;
+            height: 2px;
+            top: 50%;
+            transform: translateY(-50%);
+            border-radius: 2px;
+            box-shadow: 0 0 8px rgba(0, 0, 0, 0.5);
+        }
+        #crosshair .dot {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            width: 4px;
+            height: 4px;
+            background: #ff2d55;
+            border-radius: 50%;
+            box-shadow: 0 0 12px #ff2d55;
+            transition: background 0.1s;
+        }
+        #crosshair .dot.hit {
+            background: #00ff88;
+            box-shadow: 0 0 24px #00ff88;
+        }
+
+        /* Всплывающие уведомления */
+        #notifications {
+            position: absolute;
+            top: 5rem;
+            left: 50%;
+            transform: translateX(-50%);
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            gap: 0.5rem;
+            pointer-events: none;
+            font-size: clamp(1rem, 1.8vw, 1.6rem);
+            font-weight: 700;
+            text-shadow: 0 4px 20px rgba(0, 0, 0, 0.8);
+        }
+        #notifications .msg {
+            padding: 0.4rem 1.8rem;
+            border-radius: 12px;
+            background: rgba(0, 0, 0, 0.6);
+            backdrop-filter: blur(4px);
+            border: 1px solid rgba(255, 255, 255, 0.06);
+            animation: notifIn 0.3s ease, notifOut 0.4s ease 1.6s forwards;
+        }
+        #notifications .msg.kill {
+            color: #ffd700;
+            border-color: rgba(255, 215, 0, 0.2);
+        }
+        #notifications .msg.wave {
+            color: #6fc3ff;
+            border-color: rgba(111, 195, 255, 0.2);
+            font-size: 1.2em;
+        }
+        #notifications .msg.damage {
+            color: #ff2d55;
+            border-color: rgba(255, 45, 85, 0.2);
+        }
+        @keyframes notifIn {
+            from {
+                opacity: 0;
+                transform: translateY(20px) scale(0.9);
+            }
+            to {
+                opacity: 1;
+                transform: translateY(0) scale(1);
+            }
+        }
+        @keyframes notifOut {
+            from {
+                opacity: 1;
+                transform: translateY(0) scale(1);
+            }
+            to {
+                opacity: 0;
+                transform: translateY(-30px) scale(0.95);
+            }
+        }
+
+        /* ─── Game Over ─── */
+        #gameOver {
+            position: fixed;
+            inset: 0;
+            z-index: 50;
+            display: none;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+            background: rgba(0, 0, 0, 0.8);
+            backdrop-filter: blur(10px);
+            color: #fff;
+            text-align: center;
+            padding: 2rem;
+        }
+        #gameOver.show {
+            display: flex;
+        }
+        #gameOver h2 {
+            font-size: clamp(3rem, 10vw, 5rem);
+            font-weight: 800;
+            background: linear-gradient(135deg, #ff2d55, #ff6b35);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            margin-bottom: 0.3rem;
+        }
+        #gameOver .final-score {
+            font-size: clamp(1.2rem, 2.5vw, 2rem);
+            color: rgba(255, 255, 255, 0.7);
+            margin-bottom: 2rem;
+        }
+        #gameOver .final-score strong {
+            color: #ffd700;
+            -webkit-text-fill-color: #ffd700;
+        }
+        #gameOver .restart-btn {
+            pointer-events: auto;
+            padding: 0.8rem 3rem;
+            border: none;
+            border-radius: 99px;
+            font-size: 1.2rem;
+            font-weight: 700;
+            color: #fff;
+            background: linear-gradient(135deg, #ff6b35, #ff2d55);
+            cursor: pointer;
+            transition: transform 0.2s, box-shadow 0.2s;
+            box-shadow: 0 8px 32px rgba(255, 45, 85, 0.3);
+        }
+        #gameOver .restart-btn:hover {
+            transform: scale(1.06);
+            box-shadow: 0 12px 48px rgba(255, 45, 85, 0.5);
+        }
+
+        /* ─── Адаптив ─── */
+        @media (max-width: 600px) {
+            #topHud {
+                padding: 0.8rem 1rem;
+                font-size: 0.8rem;
+            }
+            #bottomHud {
+                padding: 0 1rem;
+                bottom: 1rem;
+                flex-direction: column;
+                align-items: stretch;
+                gap: 0.6rem;
+            }
+            #healthContainer {
+                min-width: unset;
+                padding: 0.4rem 1rem;
+            }
+            #ammoContainer {
+                min-width: unset;
+                padding: 0.4rem 1rem;
+                text-align: center;
+            }
+            #ammoCount {
+                font-size: 1.2rem;
+            }
+            #crosshair {
+                width: 30px;
+                height: 30px;
+            }
+            #startOverlay .controls-info {
+                padding: 1rem 1.4rem;
+                font-size: 0.8rem;
+                gap: 0.3rem 0.8rem;
+            }
+        }
+    </style>
+</head>
+<body>
+
+    <!-- ─── СТАРТОВЫЙ ЭКРАН ─── -->
+    <div id="startOverlay">
+        <h1>⚡ FPS</h1>
+        <div class="subtitle">Выживи в аду</div>
+        <div class="controls-info">
+            <kbd>W</kbd><span>Вперёд</span>
+            <kbd>A</kbd><span>Влево</span>
+            <kbd>S</kbd><span>Назад</span>
+            <kbd>D</kbd><span>Вправо</span>
+            <kbd>🖱</kbd><span>Прицеливание</span>
+            <kbd>ЛКМ</kbd><span>Стрельба</span>
+            <kbd>R</kbd><span>Перезарядка</span>
+            <kbd>Shift</kbd><span>Спринт</span>
+        </div>
+        <div class="click-msg">
+            <span class="icon">👆</span> Нажми, чтобы начать
+        </div>
+    </div>
+
+    <!-- ─── GAME OVER ─── -->
+    <div id="gameOver">
+        <h2>💀 Мёртв</h2>
+        <div class="final-score">Счёт: <strong id="finalScore">0</strong> &nbsp;·&nbsp; Волна: <strong id="finalWave">0</strong></div>
+        <button class="restart-btn" id="restartBtn">↻ Играть снова</button>
+    </div>
+
+    <!-- ─── HUD ─── -->
+    <div id="hud">
+        <div id="topHud">
+            <div id="scoreDisplay">
+                <div class="label">СЧЁТ</div>
+                <div class="value" id="scoreValue">0</div>
+            </div>
+            <div id="waveDisplay">
+                <div class="label">ВОЛНА</div>
+                <div class="value" id="waveValue">1</div>
+                <div id="enemyCount">👾 <span id="enemiesLeft">0</span></div>
+            </div>
+        </div>
+
+        <div id="bottomHud">
+            <div id="healthContainer">
+                <span id="healthIcon">❤️</span>
+                <div id="healthBarWrap">
+                    <div id="healthBar" style="width:100%"></div>
+                </div>
+                <span id="healthText">100</span>
+            </div>
+            <div id="ammoContainer">
+                <div id="ammoCount">
+                    <span id="ammoCurrent">12</span>
+                    <span class="max">/ <span id="ammoMax">12</span></span>
+                    <span class="reload-text" id="reloadText">⟳ ПЕРЕЗАРЯДКА</span>
+                </div>
+            </div>
+        </div>
+
+        <div id="crosshair">
+            <div class="dot" id="crosshairDot"></div>
+        </div>
+
+        <div id="notifications"></div>
+    </div>
+
+    <!-- ─── THREE.JS ─── -->
+    <script type="importmap">
+        {
+            "imports": {
+                "three": "https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js"
+            }
+        }
+    </script>
+
+    <script type="module">
+        // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+        import * as THREE from 'three';
+
+        // ─── Конфиг ──────────────────────────────────────────────
+        const CONFIG = {
+            arenaSize: 28,
+            wallHeight: 3.2,
+            playerHeight: 1.7,
+            moveSpeed: 5.5,
+            sprintMultiplier: 1.7,
+            jumpPower: 0,
+            mouseSensitivity: 0.002,
+            maxHealth: 100,
+            maxAmmo: 12,
+            reloadTime: 1.4,
+            shootCooldown: 0.22,
+            enemySpeed: 1.8,
+            enemyDamage: 14,
+            enemyAttackRange: 1.8,
+            enemySpawnInterval: 1.6,
+            maxEnemies: 20,
+            damageCooldown: 0.6,
+        };
+
+        // ─── DOM-ссылки ──────────────────────────────────────────
+        const startOverlay = document.getElementById('startOverlay');
+        const gameOverEl = document.getElementById('gameOver');
+        const restartBtn = document.getElementById('restartBtn');
+        const scoreValue = document.getElementById('scoreValue');
+        const waveValue = document.getElementById('waveValue');
+        const enemiesLeft = document.getElementById('enemiesLeft');
+        const healthBar = document.getElementById('healthBar');
+        const healthText = document.getElementById('healthText');
+        const ammoCurrent = document.getElementById('ammoCurrent');
+        const ammoMax = document.getElementById('ammoMax');
+        const reloadText = document.getElementById('reloadText');
+        const crosshairDot = document.getElementById('crosshairDot');
+        const notifications = document.getElementById('notifications');
+        const finalScore = document.getElementById('finalScore');
+        const finalWave = document.getElementById('finalWave');
+
+        // ─── Трёхмерная сцена ──────────────────────────────────
+        const scene = new THREE.Scene();
+        scene.background = new THREE.Color(0x0a0a18);
+        scene.fog = new THREE.Fog(0x0a0a18, 30, 55);
+
+        const camera = new THREE.PerspectiveCamera(72, window.innerWidth / window.innerHeight, 0.1, 80);
+        camera.position.set(0, CONFIG.playerHeight, 0);
+
+        const renderer = new THREE.WebGLRenderer({ antialias: true });
+        renderer.setSize(window.innerWidth, window.innerHeight);
+        renderer.setPixelRatio(Math.min(devicePixelRatio, 2));
+        renderer.shadowMap.enabled = true;
+        renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+        renderer.toneMapping = THREE.ACESFilmicToneMapping;
+        renderer.toneMappingExposure = 1.2;
+        document.body.prepend(renderer.domElement);
+
+        // ─── Свет ───────────────────────────────────────────────
+        const ambient = new THREE.AmbientLight(0x40406b, 0.5);
+        scene.add(ambient);
+
+        const hemi = new THREE.HemisphereLight(0x6b8cff, 0x2a1e3a, 0.6);
+        scene.add(hemi);
+
+        const sun = new THREE.DirectionalLight(0xffeedd, 1.8);
+        sun.position.set(20, 30, 10);
+        sun.castShadow = true;
+        sun.shadow.mapSize.width = 2048;
+        sun.shadow.mapSize.height = 2048;
+        sun.shadow.camera.near = 0.5;
+        sun.shadow.camera.far = 60;
+        sun.shadow.camera.left = -25;
+        sun.shadow.camera.right = 25;
+        sun.shadow.camera.top = 25;
+        sun.shadow.camera.bottom = -25;
+        scene.add(sun);
+
+        const fill = new THREE.DirectionalLight(0x4466ff, 0.3);
+        fill.position.set(-20, 10, -20);
+        scene.add(fill);
+
+        // ─── Арена ──────────────────────────────────────────────
+        const S = CONFIG.arenaSize / 2;
+        const W = CONFIG.arenaSize;
+
+        // Пол
+        const floorGeo = new THREE.PlaneGeometry(W, W);
+        const floorMat = new THREE.MeshStandardMaterial({
+            color: 0x1a1a2e,
+            roughness: 0.8,
+            metalness: 0.1,
+        });
+        const floor = new THREE.Mesh(floorGeo, floorMat);
+        floor.rotation.x = -Math.PI / 2;
+        floor.position.y = -0.01;
+        floor.receiveShadow = true;
+        scene.add(floor);
+
+        // Сетка на полу
+        const gridHelper = new THREE.GridHelper(W, 20, 0x333366, 0x222244);
+        gridHelper.position.y = 0;
+        scene.add(gridHelper);
+
+        // Стены
+        const wallMat = new THREE.MeshStandardMaterial({
+            color: 0x14142a,
+            roughness: 0.6,
+            metalness: 0.3,
+        });
+        const wallPositions = [
+            { x: 0, z: -S, rx: 0, rz: 0 },
+            { x: 0, z: S, rx: 0, rz: 0 },
+            { x: -S, z: 0, rx: 0, rz: Math.PI / 2 },
+            { x: S, z: 0, rx: 0, rz: Math.PI / 2 },
+        ];
+        for (const wp of wallPositions) {
+            const wall = new THREE.Mesh(new THREE.PlaneGeometry(W, CONFIG.wallHeight), wallMat);
+            wall.position.set(wp.x, CONFIG.wallHeight / 2, wp.z);
+            wall.rotation.x = wp.rx;
+            wall.rotation.z = wp.rz;
+            wall.receiveShadow = true;
+            wall.castShadow = true;
+            scene.add(wall);
+        }
+
+        // Угловые колонны
+        const pillarMat = new THREE.MeshStandardMaterial({
+            color: 0x1a1a3a,
+            roughness: 0.4,
+            metalness: 0.6,
+            emissive: 0x0a0a1a,
+            emissiveIntensity: 0.1,
+        });
+        const pillarPositions = [
+            [-S + 0.5, -S + 0.5],
+            [-S + 0.5, S - 0.5],
+            [S - 0.5, -S + 0.5],
+            [S - 0.5, S - 0.5],
+        ];
+        for (const [px, pz] of pillarPositions) {
+            const pillar = new THREE.Mesh(new THREE.CylinderGeometry(0.5, 0.6, CONFIG.wallHeight, 12), pillarMat);
+            pillar.position.set(px, CONFIG.wallHeight / 2, pz);
+            pillar.castShadow = true;
+            pillar.receiveShadow = true;
+            scene.add(pillar);
+        }
+
+        // Барьеры / укрытия
+        const barrierMat = new THREE.MeshStandardMaterial({
+            color: 0x2a2a4a,
+            roughness: 0.5,
+            metalness: 0.4,
+            emissive: 0x1a1a3a,
+            emissiveIntensity: 0.05,
+        });
+        const barriers = [
+            { x: -5, z: -4, w: 3, h: 1.2, d: 0.6 },
+            { x: 6, z: 5, w: 2.5, h: 1.2, d: 0.6 },
+            { x: -6, z: 6, w: 2, h: 1.2, d: 0.6 },
+            { x: 4, z: -6, w: 3, h: 1.2, d: 0.6 },
+            { x: 0, z: -7, w: 4, h: 1.2, d: 0.6 },
+            { x: 0, z: 7, w: 4, h: 1.2, d: 0.6 },
+        ];
+        for (const b of barriers) {
+            const mesh = new THREE.Mesh(new THREE.BoxGeometry(b.w, b.h, b.d), barrierMat);
+            mesh.position.set(b.x, b.h / 2, b.z);
+            mesh.castShadow = true;
+            mesh.receiveShadow = true;
+            scene.add(mesh);
+        }
+
+        // ─── Плеер ──────────────────────────────────────────────
+        const player = {
+            position: new THREE.Vector3(0, CONFIG.playerHeight, 0),
+            yaw: 0,
+            pitch: 0,
+            velocity: new THREE.Vector3(),
+            onGround: true,
+            health: CONFIG.maxHealth,
+            maxHealth: CONFIG.maxHealth,
+            ammo: CONFIG.maxAmmo,
+            maxAmmo: CONFIG.maxAmmo,
+            score: 0,
+            wave: 1,
+            isReloading: false,
+            reloadTimer: 0,
+            shootCooldown: 0,
+            damageCooldown: 0,
+            isAlive: true,
+            keys: { w: false, a: false, s: false, d: false, shift: false },
+            sprinting: false,
+        };
+
+        camera.position.copy(player.position);
+
+        // ─── Враги ──────────────────────────────────────────────
+        const enemies = [];
+        const enemyGroup = new THREE.Group();
+        scene.add(enemyGroup);
+
+        let enemySpawnTimer = 0;
+        let enemiesToSpawn = 5;
+        let totalEnemiesSpawned = 0;
+
+        // ─── Пули / эффекты ─────────────────────────────────────
+        const bulletTrails = [];
+        const hitParticles = [];
+
+        // ─── Звук (Web Audio) ──────────────────────────────────
+        let audioCtx = null;
+
+        function initAudio() {
+            if (!audioCtx) audioCtx = new(window.AudioContext || window.webkitAudioContext)();
+        }
+
+        function playShootSound() {
+            try {
+                initAudio();
+                const osc = audioCtx.createOscillator();
+                const gain = audioCtx.createGain();
+                osc.type = 'sawtooth';
+                osc.frequency.setValueAtTime(800, audioCtx.currentTime);
+                osc.frequency.exponentialRampToValueAtTime(200, audioCtx.currentTime + 0.06);
+                gain.gain.setValueAtTime(0.3, audioCtx.currentTime);
+                gain.gain.exponentialRampToValueAtTime(0.001, audioCtx.currentTime + 0.08);
+                osc.connect(gain);
+                gain.connect(audioCtx.destination);
+                osc.start(audioCtx.currentTime);
+                osc.stop(audioCtx.currentTime + 0.08);
+            } catch (_) { /* тихо */ }
+        }
+
+        function playHitSound() {
+            try {
+                initAudio();
+                const osc = audioCtx.createOscillator();
+                const gain = audioCtx.createGain();
+                osc.type = 'sine';
+                osc.frequency.setValueAtTime(1200, audioCtx.currentTime);
+                osc.frequency.exponentialRampToValueAtTime(600, audioCtx.currentTime + 0.08);
+                gain.gain.setValueAtTime(0.2, audioCtx.currentTime);
+                gain.gain.exponentialRampToValueAtTime(0.001, audioCtx.currentTime + 0.1);
+                osc.connect(gain);
+                gain.connect(audioCtx.destination);
+                osc.start(audioCtx.currentTime);
+                osc.stop(audioCtx.currentTime + 0.1);
+            } catch (_) { /* тихо */ }
+        }
+
+        function playDamageSound() {
+            try {
+                initAudio();
+                const osc = audioCtx.createOscillator();
+                const gain = audioCtx.createGain();
+                osc.type = 'sawtooth';
+                osc.frequency.setValueAtTime(300, audioCtx.currentTime);
+                osc.frequency.exponentialRampToValueAtTime(100, audioCtx.currentTime + 0.15);
+                gain.gain.setValueAtTime(0.25, audioCtx.currentTime);
+                gain.gain.exponentialRampToValueAtTime(0.001, audioCtx.currentTime + 0.15);
+                osc.connect(gain);
+                gain.connect(audioCtx.destination);
+                osc.start(audioCtx.currentTime);
+                osc.stop(audioCtx.currentTime + 0.15);
+            } catch (_) { /* тихо */ }
+        }
+
+        function playReloadSound() {
+            try {
+                initAudio();
+                const osc = audioCtx.createOscillator();
+                const gain = audioCtx.createGain();
+                osc.type = 'square';
+                osc.frequency.setValueAtTime(600, audioCtx.currentTime);
+                osc.frequency.exponentialRampToValueAtTime(400, audioCtx.currentTime + 0.12);
+                gain.gain.setValueAtTime(0.1, audioCtx.currentTime);
+                gain.gain.exponentialRampToValueAtTime(0.001, audioCtx.currentTime + 0.15);
+                osc.connect(gain);
+                gain.connect(audioCtx.destination);
+                osc.start(audioCtx.currentTime);
+                osc.stop(audioCtx.currentTime + 0.15);
+            } catch (_) { /* тихо */ }
+        }
+
+        // ─── Создание врага ─────────────────────────────────────
+        function createEnemy() {
+            const bodyMat = new THREE.MeshStandardMaterial({
+                color: 0xcc2244,
+                roughness: 0.5,
+                metalness: 0.1,
+                emissive: 0x661122,
+                emissiveIntensity: 0.2,
+            });
+            const headMat = new THREE.MeshStandardMaterial({
+                color: 0xdd3355,
+                roughness: 0.4,
+                metalness: 0.1,
+                emissive: 0x882233,
+                emissiveIntensity: 0.15,
+            });
+
+            const group = new THREE.Group();
+
+            const body = new THREE.Mesh(new THREE.BoxGeometry(0.7, 1.0, 0.5), bodyMat);
+            body.position.y = 0.5;
+            body.castShadow = true;
+            group.add(body);
+
+            const head = new THREE.Mesh(new THREE.SphereGeometry(0.28, 8, 8), headMat);
+            head.position.y = 1.25;
+            head.castShadow = true;
+            group.add(head);
+
+            // Глаза (светящиеся)
+            const eyeMat = new THREE.MeshStandardMaterial({
+                color: 0xff4444,
+                emissive: 0xff2222,
+                emissiveIntensity: 0.8,
+            });
+            for (const ex of [-0.14, 0.14]) {
+                const eye = new THREE.Mesh(new THREE.SphereGeometry(0.07, 6, 6), eyeMat);
+                eye.position.set(ex, 1.3, -0.26);
+                group.add(eye);
+            }
+
+            // Случайная позиция на краю арены
+            let x, z;
+            const margin = 1.5;
+            for (let attempt = 0; attempt < 30; attempt++) {
+                const side = Math.floor(Math.random() * 4);
+                const pos = (Math.random() - 0.5) * (CONFIG.arenaSize - margin * 2);
+                if (side === 0) { x = -S + margin;
+                    z = pos; } else if (side === 1) { x = S - margin;
+                    z = pos; } else if (side === 2) { x = pos;
+                    z = -S + margin; } else { x = pos;
+                    z = S - margin; }
+                // Не спавнить слишком близко к игроку
+                const dx = x - player.position.x;
+                const dz = z - player.position.z;
+                if (dx * dx + dz * dz > 25) break;
+            }
+
+            group.position.set(x, 0, z);
+
+            // Случайный поворот
+            group.rotation.y = Math.random() * Math.PI * 2;
+
+            const speed = CONFIG.enemySpeed + (Math.random() - 0.5) * 0.6;
+            const hp = 1 + Math.floor(player.wave / 4);
+
+            const enemy = {
+                mesh: group,
+                hp: hp,
+                maxHp: hp,
+                speed: Math.max(1.2, speed),
+                damage: CONFIG.enemyDamage + Math.floor(player.wave / 3),
+                attackCooldown: 0,
+                state: 'chase', // 'chase' | 'attack'
+                hitFlash: 0,
+                deathTimer: 0,
+                isDead: false,
+                scale: 1,
+            };
+
+            enemyGroup.add(group);
+            return enemy;
+        }
+
+        // ─── Спавн волны ────────────────────────────────────────
+        function startWave() {
+            const base = 4 + player.wave * 1.5;
+            enemiesToSpawn = Math.min(Math.floor(base), CONFIG.maxEnemies * 2);
+            totalEnemiesSpawned = 0;
+            enemySpawnTimer = 0;
+            showNotification(`⚔️ Волна ${player.wave}`, 'wave');
+            updateWaveUI();
+        }
+
+        function spawnEnemyIfNeeded() {
+            if (enemiesToSpawn <= 0) return;
+            const alive = enemies.filter(e => !e.isDead).length;
+            if (alive >= CONFIG.maxEnemies + Math.floor(player.wave / 2)) return;
+
+            const enemy = createEnemy();
+            enemies.push(enemy);
+            enemiesToSpawn--;
+            totalEnemiesSpawned++;
+            updateWaveUI();
+        }
+
+        // ─── Выстрел ────────────────────────────────────────────
+        function shoot() {
+            if (!player.isAlive) return;
+            if (player.isReloading) return;
+            if (player.shootCooldown > 0) return;
+            if (player.ammo <= 0) {
+                startReload();
+                return;
+            }
+
+            player.ammo--;
+            player.shootCooldown = CONFIG.shootCooldown;
+            updateAmmoUI();
+            playShootSound();
+
+            // Muzzle flash (визуальный эффект)
+            createMuzzleFlash();
+
+            // Рейкаст
+            const raycaster = new THREE.Raycaster();
+            raycaster.set(camera.position, camera.getWorldDirection(new THREE.Vector3()));
+            raycaster.far = 50;
+
+            // Проверка на врагов
+            const targets = [];
+            for (const enemy of enemies) {
+                if (enemy.isDead) continue;
+                // Проверяем попадание в bounding box
+                const box = new THREE.Box3().setFromObject(enemy.mesh);
+                targets.push({ enemy, box });
+            }
+
+            let hitEnemy = null;
+            let hitDist = Infinity;
+
+            // Проверяем пересечение с каждым врагом
+            for (const t of targets) {
+                const intersect = raycaster.ray.intersectsBox(t.box);
+                if (intersect) {
+                    const dist = raycaster.ray.origin.distanceTo(t.box.getCenter(new THREE.Vector3()));
+                    if (dist < hitDist) {
+                        hitDist = dist;
+                        hitEnemy = t.enemy;
+                    }
+                }
+            }
+
+            if (hitEnemy) {
+                hitEnemy.hp--;
+                hitEnemy.hitFlash = 0.15;
+                playHitSound();
+                crosshairDot.classList.add('hit');
+                setTimeout(() => crosshairDot.classList.remove('hit'), 100);
+
+                // Частицы попадания
+                const pos = hitEnemy.mesh.position.clone();
+                pos.y += 0.8;
+                spawnHitParticles(pos, 0xff4444, 8);
+
+                if (hitEnemy.hp <= 0) {
+                    killEnemy(hitEnemy);
+                }
+            } else {
+                // Трассер
+                const dir = camera.getWorldDirection(new THREE.Vector3());
+                const start = camera.position.clone();
+                const end = start.clone().add(dir.multiplyScalar(40));
+                createBulletTrail(start, end);
+            }
+
+            // Небольшой толчок камеры (отдача)
+            // (имитация через смещение позиции камеры — делаем позже в update)
+        }
+
+        function killEnemy(enemy) {
+            if (enemy.isDead) return;
+            enemy.isDead = true;
+            enemy.deathTimer = 0.4;
+            player.score += 10 + Math.floor(player.wave / 2);
+            updateScoreUI();
+            showNotification(`💥 +${10 + Math.floor(player.wave / 2)} очков`, 'kill');
+
+            // Частицы смерти
+            const pos = enemy.mesh.position.clone();
+            pos.y += 0.6;
+            spawnHitParticles(pos, 0xff6633, 20);
+
+            // Удаляем через некоторое время
+            setTimeout(() => {
+                const idx = enemies.indexOf(enemy);
+                if (idx !== -1) {
+                    enemyGroup.remove(enemy.mesh);
+                    enemies.splice(idx, 1);
+                }
+            }, 500);
+
+            // Проверка, все ли враги убиты
+            const alive = enemies.filter(e => !e.isDead).length;
+            if (alive === 0 && enemiesToSpawn <= 0) {
+                // Следующая волна
+                player.wave++;
+                setTimeout(() => startWave(), 600);
+            }
+            updateWaveUI();
+        }
+
+        // ─── Перезарядка ────────────────────────────────────────
+        function startReload() {
+            if (player.isReloading) return;
+            if (player.ammo === player.maxAmmo) return;
+            player.isReloading = true;
+            player.reloadTimer = CONFIG.reloadTime;
+            reloadText.classList.add('active');
+            playReloadSound();
+        }
+
+        function updateReload(dt) {
+            if (!player.isReloading) return;
+            player.reloadTimer -= dt;
+            if (player.reloadTimer <= 0) {
+                player.isReloading = false;
+                player.ammo = player.maxAmmo;
+                reloadText.classList.remove('active');
+                updateAmmoUI();
+                playReloadSound();
+            }
+        }
+
+        // ─── Эффекты ────────────────────────────────────────────
+        function createMuzzleFlash() {
+            const flash = new THREE.Mesh(
+                new THREE.SphereGeometry(0.12, 6, 6),
+                new THREE.MeshBasicMaterial({ color: 0xffaa44, transparent: true, opacity: 0.9 })
+            );
+            const dir = camera.getWorldDirection(new THREE.Vector3());
+            flash.position.copy(camera.position).add(dir.multiplyScalar(0.6));
+            flash.position.y -= 0.1;
+            scene.add(flash);
+            setTimeout(() => {
+                flash.material.opacity = 0;
+                setTimeout(() => scene.remove(flash), 50);
+            }, 40);
+
+            // Дополнительный световой всплеск
+            const light = new THREE.PointLight(0xffaa44, 2, 3);
+            light.position.copy(flash.position);
+            scene.add(light);
+            setTimeout(() => {
+                light.intensity = 0;
+                setTimeout(() => scene.remove(light), 80);
+            }, 60);
+        }
+
+        function createBulletTrail(start, end) {
+            const points = [start.clone(), end.clone()];
+            const geo = new THREE.BufferGeometry().setFromPoints(points);
+            const mat = new THREE.LineBasicMaterial({
+                color: 0x88ccff,
+                transparent: true,
+                opacity: 0.6,
+                linewidth: 1,
+            });
+            const line = new THREE.Line(geo, mat);
+            scene.add(line);
+            bulletTrails.push({ mesh: line, life: 0.15 });
+        }
+
+        function spawnHitParticles(position, color, count = 12) {
+            for (let i = 0; i < count; i++) {
+                const size = 0.04 + Math.random() * 0.08;
+                const mat = new THREE.MeshStandardMaterial({
+                    color: color,
+                    emissive: color,
+                    emissiveIntensity: 0.6,
+                    transparent: true,
+                    opacity: 1,
+                });
+                const mesh = new THREE.Mesh(new THREE.SphereGeometry(size, 4, 4), mat);
+                mesh.position.copy(position);
+                mesh.position.x += (Math.random() - 0.5) * 0.2;
+                mesh.position.z += (Math.random() - 0.5) * 0.2;
+                const vel = new THREE.Vector3(
+                    (Math.random() - 0.5) * 4,
+                    Math.random() * 3 + 1,
+                    (Math.random() - 0.5) * 4
+                );
+                scene.add(mesh);
+                hitParticles.push({
+                    mesh,
+                    vel,
+                    life: 0.6 + Math.random() * 0.4,
+                    maxLife: 0.8 + Math.random() * 0.4,
+                });
+            }
+        }
+
+        // ─── UI обновления ──────────────────────────────────────
+        function updateScoreUI() {
+            scoreValue.textContent = player.score;
+        }
+
+        function updateWaveUI() {
+            waveValue.textContent = player.wave;
+            const alive = enemies.filter(e => !e.isDead).length;
+            const remaining = enemiesToSpawn + alive;
+            enemiesLeft.textContent = remaining;
+        }
+
+        function updateHealthUI() {
+            const pct = Math.max(0, (player.health / player.maxHealth) * 100);
+            healthBar.style.width = pct + '%';
+            healthText.textContent = Math.ceil(player.health);
+            if (pct < 25) {
+                healthBar.style.background = 'linear-gradient(90deg, #ff0040, #ff2d55)';
+            } else if (pct < 50) {
+                healthBar.style.background = 'linear-gradient(90deg, #ff6b35, #ffaa44)';
+            } else {
+                healthBar.style.background = 'linear-gradient(90deg, #00cc66, #44ff88)';
+            }
+        }
+
+        function updateAmmoUI() {
+            ammoCurrent.textContent = player.ammo;
+            ammoMax.textContent = player.maxAmmo;
+        }
+
+        function showNotification(text, type = '') {
+            const el = document.createElement('div');
+            el.className = 'msg' + (type ? ' ' + type : '');
+            el.textContent = text;
+            notifications.appendChild(el);
+            setTimeout(() => {
+                if (el.parentNode) el.remove();
+            }, 2200);
+        }
+
+        // ─── Игровой цикл ──────────────────────────────────────
+        const clock = new THREE.Clock();
+
+        function update(dt) {
+            if (!player.isAlive) return;
+
+            // ── Кулдауны ──
+            if (player.shootCooldown > 0) player.shootCooldown -= dt;
+            if (player.damageCooldown > 0) player.damageCooldown -= dt;
+            updateReload(dt);
+
+            // ── Движение ──
+            const forward = new THREE.Vector3(-Math.sin(player.yaw), 0, -Math.cos(player.yaw));
+            const right = new THREE.Vector3(Math.cos(player.yaw), 0, -Math.sin(player.yaw));
+
+            const move = new THREE.Vector3();
+            if (player.keys.w) move.add(forward);
+            if (player.keys.s) move.sub(forward);
+            if (player.keys.a) move.sub(right);
+            if (player.keys.d) move.add(right);
+            if (move.length() > 0) move.normalize();
+
+            player.sprinting = player.keys.shift && (player.keys.w || player.keys.s);
+            const speed = CONFIG.moveSpeed * (player.sprinting ? CONFIG.sprintMultiplier : 1);
+            move.multiplyScalar(speed * dt);
+
+            // Простая коллизия со стенами
+            const newPos = player.position.clone();
+            newPos.x += move.x;
+            newPos.z += move.z;
+
+            // Границы арены
+            const limit = CONFIG.arenaSize / 2 - 0.5;
+            newPos.x = Math.max(-limit, Math.min(limit, newPos.x));
+            newPos.z = Math.max(-limit, Math.min(limit, newPos.z));
+
+            // Коллизия с барьерами (упрощённо)
+            const barrierCol = 0.6;
+            for (const b of barriers) {
+                const bx = b.x,
+                    bz = b.z;
+                const bw = b.w / 2 + barrierCol;
+                const bd = b.d / 2 + barrierCol;
+                if (newPos.x > bx - bw && newPos.x < bx + bw &&
+                    newPos.z > bz - bd && newPos.z < bz + bd) {
+                    // Отталкиваем
+                    const dx = newPos.x - bx;
+                    const dz = newPos.z - bz;
+                    const overlapX = bw - Math.abs(dx);
+                    const overlapZ = bd - Math.abs(dz);
+                    if (overlapX < overlapZ) {
+                        newPos.x += Math.sign(dx) * overlapX;
+                    } else {
+                        newPos.z += Math.sign(dz) * overlapZ;
+                    }
+                }
+            }
+
+            player.position.copy(newPos);
+            camera.position.copy(player.position);
+
+            // ── Обновление врагов ──
+            const playerPos = player.position.clone();
+            for (const enemy of enemies) {
+                if (enemy.isDead) {
+                    enemy.deathTimer -= dt;
+                    if (enemy.deathTimer > 0) {
+                        const s = 1 - (1 - enemy.deathTimer / 0.4) * 0.6;
+                        enemy.mesh.scale.set(s, s, s);
+                        enemy.mesh.position.y = (1 - s) * 0.8;
+                    }
+                    continue;
+                }
+
+                // Hit flash
+                if (enemy.hitFlash > 0) {
+                    enemy.hitFlash -= dt;
+                    const flash = Math.sin(enemy.hitFlash * 60) * 0.5 + 0.5;
+                    enemy.mesh.children.forEach(c => {
+                        if (c.material) {
+                            c.material.emissiveIntensity = 0.2 + flash * 0.8;
+                        }
+                    });
+                } else {
+                    enemy.mesh.children.forEach(c => {
+                        if (c.material) {
+                            c.material.emissiveIntensity = 0.2;
+                        }
+                    });
+                }
+
+                // AI: движение к игроку
+                const toPlayer = new THREE.Vector3().copy(playerPos).sub(enemy.mesh.position);
+                toPlayer.y = 0;
+                const dist = toPlayer.length();
+
+                if (dist < CONFIG.enemyAttackRange) {
+                    enemy.state = 'attack';
+                    // Атака
+                    if (enemy.attackCooldown <= 0 && player.damageCooldown <= 0) {
+                        player.health -= enemy.damage;
+                        player.damageCooldown = CONFIG.damageCooldown;
+                        updateHealthUI();
+                        playDamageSound();
+                        showNotification(`💔 -${enemy.damage} HP`, 'damage');
+                        // Толчок камеры
+                        if (player.health <= 0) {
+                            player.health = 0;
+                            gameOver();
+                        }
+                        enemy.attackCooldown = 0.8;
+                    }
+                    if (enemy.attackCooldown > 0) enemy.attackCooldown -= dt;
+                } else {
+                    enemy.state = 'chase';
+                    if (dist > 0.5) {
+                        const dir = toPlayer.clone().normalize();
+                        const moveSpeed = enemy.speed * dt;
+                        enemy.mesh.position.x += dir.x * moveSpeed;
+                        enemy.mesh.position.z += dir.z * moveSpeed;
+                        // Поворот к игроку
+                        const targetAngle = Math.atan2(dir.x, dir.z);
+                        let currentAngle = enemy.mesh.rotation.y;
+                        let diff = targetAngle - currentAngle;
+                        while (diff > Math.PI) diff -= Math.PI * 2;
+                        while (diff < -Math.PI) diff += Math.PI * 2;
+                        enemy.mesh.rotation.y += diff * Math.min(1, 6 * dt);
+                    }
+                }
+
+                // Атака в прыжке (анимация)
+                if (enemy.state === 'attack') {
+                    const bob = Math.sin(Date.now() * 0.008) * 0.04;
+                    enemy.mesh.position.y = bob;
+                } else {
+                    enemy.mesh.position.y = 0;
+                }
+
+                // Ограничение в пределах арены
+                const lim = CONFIG.arenaSize / 2 - 0.3;
+                enemy.mesh.position.x = Math.max(-lim, Math.min(lim, enemy.mesh.position.x));
+                enemy.mesh.position.z = Math.max(-lim, Math.min(lim, enemy.mesh.position.z));
+            }
+
+            // ── Спавн врагов ──
+            if (enemiesToSpawn > 0) {
+                enemySpawnTimer -= dt;
+                if (enemySpawnTimer <= 0) {
+                    spawnEnemyIfNeeded();
+                    enemySpawnTimer = CONFIG.enemySpawnInterval * (0.6 + Math.random() * 0.4);
+                }
+            }
+
+            // ── Обновление частиц ──
+            for (let i = hitParticles.length - 1; i >= 0; i--) {
+                const p = hitParticles[i];
+                p.mesh.position.add(p.vel.clone().multiplyScalar(dt));
+                p.vel.y -= 6 * dt;
+                p.life -= dt;
+                p.mesh.material.opacity = p.life / p.maxLife;
+                if (p.life <= 0 || p.mesh.position.y < -1) {
+                    scene.remove(p.mesh);
+                    hitParticles.splice(i, 1);
+                }
+            }
+
+            // ── Обновление трассеров ──
+            for (let i = bulletTrails.length - 1; i >= 0; i--) {
+                const t = bulletTrails[i];
+                t.life -= dt;
+                t.mesh.material.opacity = t.life / 0.15;
+                if (t.life <= 0) {
+                    scene.remove(t.mesh);
+                    bulletTrails.splice(i, 1);
+                }
+            }
+
+            // ── Отдача камеры ──
+            // (небольшая вибрация при стрельбе делается через смещение)
+
+            // ── UI ──
+            updateWaveUI();
+            updateHealthUI();
+        }
+
+        // ─── Game Over ──────────────────────────────────────────
+        function gameOver() {
+            player.isAlive = false;
+            finalScore.textContent = player.score;
+            finalWave.textContent = player.wave;
+            gameOverEl.classList.add('show');
+            if (document.pointerLockElement) {
+                document.exitPointerLock();
+            }
+        }
+
+        function restartGame() {
+            // Сброс
+            player.health = CONFIG.maxHealth;
+            player.ammo = CONFIG.maxAmmo;
+            player.score = 0;
+            player.wave = 1;
+            player.isAlive = true;
+            player.isReloading = false;
+            player.reloadTimer = 0;
+            player.shootCooldown = 0;
+            player.damageCooldown = 0;
+            player.position.set(0, CONFIG.playerHeight, 0);
+            camera.position.copy(player.position);
+            player.yaw = 0;
+            player.pitch = 0;
+            camera.rotation.set(0, 0, 0);
+
+            // Удалить всех врагов
+            for (const e of enemies) {
+                enemyGroup.remove(e.mesh);
+            }
+            enemies.length = 0;
+            enemiesToSpawn = 5;
+            totalEnemiesSpawned = 0;
+            enemySpawnTimer = 0;
+
+            // Очистить частицы
+            for (const p of hitParticles) scene.remove(p.mesh);
+            hitParticles.length = 0;
+            for (const t of bulletTrails) scene.remove(t.mesh);
+            bulletTrails.length = 0;
+
+            gameOverEl.classList.remove('show');
+            updateScoreUI();
+            updateHealthUI();
+            updateAmmoUI();
+            updateWaveUI();
+            reloadText.classList.remove('active');
+            startWave();
+
+            // Возвращаем указатель
+            if (!document.pointerLockElement) {
+                document.body.click();
+            }
+        }
+
+        // ─── Pointer Lock ──────────────────────────────────────
+        let isLocked = false;
+
+        function onPointerLockChange() {
+            isLocked = !!document.pointerLockElement;
+            if (!isLocked && player.isAlive) {
+                // Не блокируем, просто ждём
+            }
+        }
+
+        document.addEventListener('pointerlockchange', onPointerLockChange);
+
+        // ─── Обработчики ввода ──────────────────────────────────
+        document.addEventListener('keydown', (e) => {
+            const key = e.key.toLowerCase();
+            if (key === 'w' || key === 'a' || key === 's' || key === 'd') {
+                player.keys[key] = true;
+                e.preventDefault();
+            }
+            if (key === 'shift') {
+                player.keys.shift = true;
+                e.preventDefault();
+            }
+            if (key === 'r') {
+                startReload();
+                e.preventDefault();
+            }
+            if (key === ' ' && !e.repeat) {
+                // Можно было бы прыжок, но у нас его нет
+                e.preventDefault();
+            }
+        });
+
+        document.addEventListener('keyup', (e) => {
+            const key = e.key.toLowerCase();
+            if (key === 'w' || key === 'a' || key === 's' || key === 'd') {
+                player.keys[key] = false;
+                e.preventDefault();
+            }
+            if (key === 'shift') {
+                player.keys.shift = false;
+                e.preventDefault();
+            }
+        });
+
+        document.addEventListener('mousemove', (e) => {
+            if (!isLocked || !player.isAlive) return;
+            const sensitivity = CONFIG.mouseSensitivity;
+            player.yaw -= e.movementX * sensitivity;
+            player.pitch -= e.movementY * sensitivity;
+            player.pitch = Math.max(-Math.PI / 2.2, Math.min(Math.PI / 2.2, player.pitch));
+
+            camera.rotation.order = 'YXZ';
+            camera.rotation.y = player.yaw;
+            camera.rotation.x = player.pitch;
+        });
+
+        document.addEventListener('mousedown', (e) => {
+            if (e.button === 0 && isLocked && player.isAlive) {
+                shoot();
+            }
+        });
+
+        // ─── Запуск игры ────────────────────────────────────────
+        function startGame() {
+            initAudio();
+            startOverlay.classList.add('hidden');
+            document.body.requestPointerLock?.();
+            startWave();
+            updateScoreUI();
+            updateHealthUI();
+            updateAmmoUI();
+        }
+
+        startOverlay.addEventListener('click', () => {
+            if (!startOverlay.classList.contains('hidden')) {
+                startGame();
+            }
+        });
+
+        restartBtn.addEventListener('click', restartGame);
+
+        // ─── Resize ─────────────────────────────────────────────
+        window.addEventListener('resize', () => {
+            const w = window.innerWidth;
+            const h = window.innerHeight;
+            camera.aspect = w / h;
+            camera.updateProjectionMatrix();
+            renderer.setSize(w, h);
+        });
+
+        // ─── Главный цикл ──────────────────────────────────────
+        function animate() {
+            requestAnimationFrame(animate);
+            const dt = Math.min(clock.getDelta(), 0.05);
+            update(dt);
+            renderer.render(scene, camera);
+        }
+
+        animate();
+
+        // Небольшой хак: если потеряли указатель, можно кликнуть для восстановления
+        document.addEventListener('click', () => {
+            if (!isLocked && player.isAlive && !gameOverEl.classList.contains('show') &&
+                startOverlay.classList.contains('hidden')) {
+                document.body.requestPointerLock?.();
+            }
+        });
+
+        // ─── Инициализация UI ──────────────────────────────────
+        updateAmmoUI();
+        updateHealthUI();
+        updateScoreUI();
+        updateWaveUI();
+
+        console.log('🔫 FPS Game запущен!');
+        console.log('🎮 Управление: WASD — движение, Мышь — прицел, ЛКМ — стрельба, R — перезарядка, Shift — спринт');
+
+        // ──────────────────────────────────────────────────────────
+        // Скрытый бонус: пара звезд на небе для атмосферы
+        const starsGeo = new THREE.BufferGeometry();
+        const starPositions = [];
+        for (let i = 0; i < 800; i++) {
+            const theta = Math.random() * Math.PI * 2;
+            const phi = Math.acos(2 * Math.random() - 1);
+            const r = 50 + Math.random() * 30;
+            starPositions.push(
+                r * Math.sin(phi) * Math.cos(theta),
+                r * Math.cos(phi) * 0.3 + 15,
+                r * Math.sin(phi) * Math.sin(theta)
+            );
+        }
+        starsGeo.setAttribute('position', new THREE.Float32BufferAttribute(starPositions, 3));
+        const starsMat = new THREE.PointsMaterial({
+            color: 0x8888ff,
+            size: 0.15,
+            transparent: true,
+            opacity: 0.6,
+            sizeAttenuation: true,
+        });
+        const stars = new THREE.Points(starsGeo, starsMat);
+        scene.add(stars);
+        // ──────────────────────────────────────────────────────────
+    </script>
+</body>
+</html>
